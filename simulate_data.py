@@ -64,6 +64,8 @@ bpws_n = np.dot(windows, nl)
 leff = np.dot(windows, l_all)
 fsky = 0.1
 cov = np.diag((bpws+bpws_n)**2 / ((leff + 0.5) * fsky * d_ell))
+# Add statistical noise
+bpws = np.random.multivariate_normal(bpws, cov)
 
 s = sacc.Sacc()
 s.add_tracer('Map', 'SO_y', 'y', 0,
