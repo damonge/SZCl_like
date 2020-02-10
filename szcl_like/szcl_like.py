@@ -1,13 +1,10 @@
-#from cobaya.likelihoods._base_classes import _InstallableLikelihood
 import pyccl as ccl
 from .theory import HaloProfileArnaud, SZTracer
 import numpy as np
 from scipy.interpolate import interp1d
 
 
-#class SZClLike(_InstallableLikelihood):
 class SZClLike(object):
-    #def initialize(self):
     def __init__(self, config):
         self.config = config
         self.nl_per_decade = 5

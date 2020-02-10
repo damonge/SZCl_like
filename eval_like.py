@@ -10,12 +10,6 @@ cosmo_params = {
 nuisance_params = {
     "b_hydro": 0.2}
 
-#szcllike_config = {
-#    "szcl_like.SZClLike": {"cl_file": "data/cl_yy.fits",
-#                           "map_name": "SO_y",
-#                           "l_min": 100,
-#                           "l_max": 3000}
-#    }
 szcllike_config = {"cl_file": "data/cl_yy.fits",
                    "map_name": "SO_y",
                    "l_min": 100,
@@ -31,8 +25,7 @@ def logp(Omega_c, Omega_b, h, n_s, sigma8, b_hydro):
     return szcllike.logp(**p)
 
 info = {"params": {**cosmo_params, **nuisance_params},
-        #"likelihood": szcllike_config,
-        "likelihood": {'szcl': logp}}#szcllike.logp}}
+        "likelihood": {'szcl': logp}}
 
 from cobaya.model import get_model
 model = get_model(info)
