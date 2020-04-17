@@ -20,14 +20,14 @@ def nl_yy_f(l):
     return out
     
     
-
+# CCL setup
 cosmo = ccl.Cosmology(Omega_c=0.25,
                       Omega_b=0.05,
                       h=0.67,
                       n_s=0.96,
                       sigma8=0.8)
 mdef = ccl.halos.MassDef(500, 'critical')
-hmf = ccl.halos.MassFuncBocquet16(cosmo, mass_def=mdef)
+hmf = ccl.halos.MassFuncTinker08(cosmo, mass_def=mdef)
 hmb = ccl.halos.HaloBiasTinker10(cosmo, mass_def=mdef, mass_def_strict=False)
 hmc = ccl.halos.HMCalculator(cosmo, hmf, hmb, mdef)
 ks = np.geomspace(1E-4, 100, 256)
@@ -35,11 +35,13 @@ a_s = np.linspace(0.1, 1, 10)
 prof = HaloProfileArnaud(0.2)
 szk = SZTracer(cosmo)
 
+# Compute pressure P(k)
 pk2d = ccl.halos.halomod_Pk2D(cosmo, hmc, prof,
                               lk_arr=np.log(ks),
                               a_arr=a_s,
                               get_2h=False)
 
+# Limber integral
 lmax = 15001
 ells = np.unique(np.geomspace(2, lmax, 400).astype(int)).astype(float)
 cl_t = ccl.angular_cl(cosmo, szk, szk, ells, p_of_k_a=pk2d)
@@ -48,28 +50,32 @@ l_all = np.arange(2, lmax+1)
 cl = np.exp(lcl_i(np.log(l_all)))
 nl = nl_yy_f(l_all)
 
+# Beam
 beam_fwhm_amin = 1.4
 beam = np.exp(-0.5 * l_all * (l_all + 1) * (beam_fwhm_amin * np.pi / 180 / 60)**2)
 cl*=beam**2
 
+# Bandpower window
 d_ell = 100
 n_bands = 10000 // d_ell
 windows = np.zeros([n_bands, lmax-1])
 for i in range(n_bands):
     windows[i, i*d_ell+2:(i+1)*d_ell+2] = 1. / d_ell
 win = sacc.Window(l_all, windows.T)
-    
+
+# Convolve and Gaussian covariance
 bpws = np.dot(windows, cl)
 bpws_n = np.dot(windows, nl)
 leff = np.dot(windows, l_all)
 fsky = 0.1
 cov = np.diag((bpws+bpws_n)**2 / ((leff + 0.5) * fsky * d_ell))
+
 # Add statistical noise
-bpws = np.random.multivariate_normal(bpws, cov)
+#bpws = np.random.multivariate_normal(bpws, cov)
 
 s = sacc.Sacc()
-s.add_tracer('Map', 'SO_y', 'y', 0,
-             ell=l_all, beam_ell=beam)
+s.add_tracer('Map', 'SO_y', quantity='cmb_tSZ',
+             spin=0, ell=l_all, beam_ell=beam)
 s.add_ell_cl('cl_00', 'SO_y', 'SO_y',
              leff, bpws, window=win,
              window_id=range(len(leff)))

@@ -45,9 +45,9 @@ class SZClLike(object):
         self.invcov = np.linalg.inv(self.cov)
 
         # Read bandpower window functions
-        self.ls_all = win[0]
+        self.ls_all = win.values
         self.l_ls_all = np.log(self.ls_all)
-        self.windows = win[1]
+        self.windows = win.weight.T
 
         # Read beam and resample
         t = s.get_tracer(self.config['map_name'])
@@ -65,8 +65,8 @@ class SZClLike(object):
         self.l_ls_sample = np.log(self.ls_sample)
         
     def _get_sz_model(self):
-        self.hmf = ccl.halos.MassFuncBocquet16(self.cosmo,
-                                               mass_def=self.mdef)
+        self.hmf = ccl.halos.MassFuncTinker08(self.cosmo,
+                                              mass_def=self.mdef)
         self.hmb = ccl.halos.HaloBiasTinker10(self.cosmo,
                                               mass_def=self.mdef,
                                               mass_def_strict=False)

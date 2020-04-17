@@ -96,7 +96,7 @@ class HaloProfileArnaud(ccl.halos.HaloProfile):
         # hydrostatic bias
         b = self.b_hydro
         # R_Delta*(1+z)
-        R = mass_def.get_radius(cosmo, M_use, a) / a
+        R = mass_def.get_radius(cosmo, M_use * (1-b), a) / a
 
         nn = self._norm(cosmo, M_use, a, b)
         prof = self._form_factor(r_use[None, :] * R[:, None])
@@ -119,7 +119,7 @@ class HaloProfileArnaud(ccl.halos.HaloProfile):
         # hydrostatic bias
         b = self.b_hydro
         # R_Delta*(1+z)
-        R = mass_def.get_radius(cosmo, M_use, a) / a
+        R = mass_def.get_radius(cosmo, M_use * (1-b), a) / a
 
         ff = self._fourier_interp(np.log10(k_use[None, :] * R[:, None]))
         nn = self._norm(cosmo, M_use, a, b)
@@ -140,7 +140,17 @@ class SZTracer(ccl.Tracer):
         a_arr = ccl.scale_factor_of_chi(cosmo, chi_arr) 
         # avoid recomputing every time
         # Units of eV * Mpc / cm^3
-        prefac = 4.017100792437957e-06
+
+        # sigma_T = 6.65e-29 m2
+        # m_e = 9.11e-31 kg
+        # c = 3e8  m/s
+
+        # eV2J = 1.6e-19 eV/J (J=kg m2/s2)
+        # cm2pc = 3.1e18 cm/pc
+
+        # prefac = (sigma_t*(10**2)**2/(m_e*c**2/J2eV))*cm2pc*10**6
+
+        prefac = 4.01710079e-06
         w_arr = prefac * a_arr
 
         self._trc = []
