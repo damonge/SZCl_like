@@ -2,42 +2,48 @@ import pyccl as ccl
 from .theory import HaloProfileArnaud, SZTracer
 import numpy as np
 from scipy.interpolate import interp1d
+from cobaya.theory import Theory
 
 
-class SZClLike(object):
-    def __init__(self, config):
-        self.config = config
+class SZModel:
+    pass
+
+
+class SZClLike(Theory):
+    cl_file: str = "data/cl_yy.fits"
+    map_name: str = "SO_y"
+    l_min: int = 100
+    l_max: int = 3000
+
+    def initialize(self):
         self.nl_per_decade = 5
         self.mdef = ccl.halos.MassDef(500, 'critical')
         self.prof = HaloProfileArnaud(0.2)
         self._read_data()
-        self.cosmo = ccl.Cosmology(Omega_c=0.25,
-                                   Omega_b=0.05,
-                                   h=0.67,
-                                   n_s=0.96,
-                                   sigma8=0.8)
-        self._get_sz_model()
         self.ks = np.geomspace(1E-4, 100, 256)
         self.lks = np.log(self.ks)
         self.a_s = np.linspace(0.1, 1, 10)
         self.add_2h = False
 
+    def get_requirements(self):
+        return {'CCL_cosmology'}
+
     def _read_data(self):
         import sacc
         # Read data vector and covariance
-        s = sacc.Sacc.load_fits(self.config['cl_file'])
-        if self.config['map_name'] not in list(s.tracers.keys()):
+        s = sacc.Sacc.load_fits(self.cl_file)
+        if self.map_name not in list(s.tracers.keys()):
             raise KeyError("Map not found")
 
         inds = s.indices('cl_00',
-                         (self.config['map_name'],
-                          self.config['map_name']),
-                         ell__gt=self.config['l_min'],
-                         ell__lt=self.config['l_max'])
+                         (self.map_name,
+                          self.map_name),
+                         ell__gt=self.l_min,
+                         ell__lt=self.l_max)
         s.keep_indices(inds)
         ls, cl, win = s.get_ell_cl('cl_00',
-                                   self.config['map_name'],
-                                   self.config['map_name'],
+                                   self.map_name,
+                                   self.map_name,
                                    return_windows=True)
         self.leff = ls
         self.data = cl
@@ -50,11 +56,11 @@ class SZClLike(object):
         self.windows = win.weight.T
 
         # Read beam and resample
-        t = s.get_tracer(self.config['map_name'])
+        t = s.get_tracer(self.map_name)
         beam_f = interp1d(t.ell, t.beam_ell,
                           bounds_error=False,
                           fill_value=0)
-        self.beam2 = beam_f(self.ls_all)**2
+        self.beam2 = beam_f(self.ls_all) ** 2
 
         # Compute ell nodes
         l10_lmax = np.log10(self.ls_all[-1])
@@ -63,42 +69,36 @@ class SZClLike(object):
                                                l10_lmax,
                                                n_sample).astype(int)).astype(float)
         self.l_ls_sample = np.log(self.ls_sample)
-        
-    def _get_sz_model(self):
-        self.hmf = ccl.halos.MassFuncTinker08(self.cosmo,
-                                              mass_def=self.mdef)
-        self.hmb = ccl.halos.HaloBiasTinker10(self.cosmo,
-                                              mass_def=self.mdef,
-                                              mass_def_strict=False)
-        self.hmc = ccl.halos.HMCalculator(self.cosmo,
-                                          self.hmf,
-                                          self.hmb,
-                                          self.mdef)
-        self.szk = SZTracer(self.cosmo)
 
-    def _check_cosmo_changed(self, **pars):
-        if ((pars['Omega_c']!=self.cosmo['Omega_c']) or
-            (pars['Omega_b']!=self.cosmo['Omega_b']) or
-            (pars['h']!=self.cosmo['h']) or
-            (pars['n_s']!=self.cosmo['n_s']) or
-            (pars['sigma8']!=self.cosmo['sigma8'])):
-            self.cosmo = ccl.Cosmology(Omega_c=pars['Omega_c'],
-                                       Omega_b=pars['Omega_b'],
-                                       h=pars['h'],
-                                       n_s=pars['n_s'],
-                                       sigma8=pars['sigma8'])
-            self._get_sz_model()
+    def _get_sz_model(self):
+        model = SZModel()
+        model.hmf = ccl.halos.MassFuncTinker08(self.cosmo,
+                                               mass_def=self.mdef)
+        model.hmb = ccl.halos.HaloBiasTinker10(self.cosmo,
+                                               mass_def=self.mdef,
+                                               mass_def_strict=False)
+        model.hmc = ccl.halos.HMCalculator(self.cosmo,
+                                           model.hmf,
+                                           model.hmb,
+                                           self.mdef)
+        model.szk = SZTracer(self.cosmo)
+        return model
 
     def _get_theory(self, **pars):
-        self._check_cosmo_changed(**pars)
+        self.cosmo, cache = self.provider.get_CCL_cosmology()
+        sz_model = cache.get('sz_model')
+        if sz_model is None:
+            sz_model = self._get_sz_model()
+            cache['sz_model'] = sz_model
+
         self.prof._update_bhydro(pars['b_hydro'])
         pk2d = ccl.halos.halomod_Pk2D(self.cosmo,
-                                      self.hmc,
+                                      sz_model.hmc,
                                       self.prof,
                                       lk_arr=self.lks,
                                       a_arr=self.a_s,
                                       get_2h=self.add_2h)
-        cls = ccl.angular_cl(self.cosmo, self.szk, self.szk,
+        cls = ccl.angular_cl(self.cosmo, sz_model.szk, sz_model.szk,
                              self.ls_sample,
                              p_of_k_a=pk2d)
         clf = interp1d(self.l_ls_sample, np.log(cls),
@@ -106,7 +106,7 @@ class SZClLike(object):
         cls = np.exp(clf(self.l_ls_all)) * self.beam2
         cls = np.dot(self.windows, cls)
         return cls
-        
+
     def logp(self, **pars):
         t = self._get_theory(**pars)
         r = t - self.data
