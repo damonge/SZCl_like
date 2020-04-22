@@ -2,14 +2,14 @@ import pyccl as ccl
 from .theory import HaloProfileArnaud, SZTracer
 import numpy as np
 from scipy.interpolate import interp1d
-from cobaya.theory import Theory
+from cobaya.likelihood import Likelihood
 
 
 class SZModel:
     pass
 
 
-class SZClLike(Theory):
+class SZClLike(Likelihood):
     cl_file: str = "data/cl_yy.fits"
     map_name: str = "SO_y"
     l_min: int = 100

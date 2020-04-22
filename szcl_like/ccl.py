@@ -12,6 +12,9 @@ from cobaya.theory import Theory
 
 class CCL(Theory):
 
+    #Options for Pk
+    Pk = {}
+
     def initialize(self):
         self._zmax = 0
         self._kmax = 0
@@ -41,7 +44,7 @@ class CCL(Theory):
         # Dictionary of the things CCL needs from CAMB/CLASS
         needs = {}
 
-        Pk = requirements.get("Pk")
+        Pk = self.Pk
         if Pk:
             # CCL currently only supports ('delta_tot', 'delta_tot'), but call allow
             # general as placeholder
