@@ -15,6 +15,8 @@ class SZClLike(Likelihood):
     l_min: int = 100
     l_max: int = 3000
 
+    params = {'b_hydro': 0.2}
+
     def initialize(self):
         self.nl_per_decade = 5
         self.mdef = ccl.halos.MassDef(500, 'critical')
