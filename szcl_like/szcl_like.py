@@ -28,7 +28,7 @@ class SZClLike(Likelihood):
         self.add_2h = False
 
     def get_requirements(self):
-        return {'CCL': {'cosmo': None, 'sz_model': self._get_sz_model}}
+        return {'CCL': {'sz_model': self._get_sz_model}}
 
     def _read_data(self):
         import sacc

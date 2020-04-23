@@ -70,7 +70,7 @@ class CCL(Theory):
             # general as placeholder
             self._kmax = max(Pk.get('kmax', 10), self._kmax)
             self._var_pairs.update(
-                set(tuple(x, y) for x, y in
+                set((x, y) for x, y in
                     Pk.get('vars_pairs', [('delta_tot', 'delta_tot')])))
 
             # for the moment always get Pk_grid, when supported should
@@ -85,7 +85,6 @@ class CCL(Theory):
         needs['comoving_radial_distance'] = {'z': self._z_sampling}
 
         assert len(self._var_pairs) < 2, "CCL doesn't support other Pk yet"
-
         return needs
 
     def get_can_support_params(self):
