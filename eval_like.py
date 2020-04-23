@@ -21,7 +21,7 @@ info = {"params": {"omch2": cosmo_params['Omega_c'] * cosmo_params['h'] ** 2.,
         "likelihood": {'szcl': SZClLike},
         "theory": {
             "camb": None,
-            "ccl": {"external": CCL, "Pk": {"kmax": 10}}
+            "ccl": {"external": CCL}
         }}
 
 model = get_model(info)

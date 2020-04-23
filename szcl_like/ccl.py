@@ -1,38 +1,48 @@
-# Simple CCL wrapper with function to return CCL cosmo object, and (optional) result of calling various custom methods
-# on the ccl object
+"""
 
-# get_CCL results a dictionary of results, where results['cosmo'] is the CCL cosmology object.
+Simple CCL wrapper with function to return CCL cosmo object, and (optional) result of
+calling various custom methods on the ccl object.
 
-# Classes that need other CCL-computed results (without additional free parameters), should
-# pass them in the requirements list.
-# e.g. a Likelihood with get_requirements() returning {'CCL':{'name': self.method}} [where self is the Theory instance]
-# will have results['name'] set to the result of self.method(cosmo) being called with the CCL cosmo object
-# The Likelihood class can therefore handle for itself which results specifically it needs from CCL, and just give the
-# method to return them (to be called and cached by Cobaya with the right parameters at the appropriate time).
-# Alternatively the Likelihood can compute what it needs from results['cosmo'], however in this
-# case it will be up to the Likelihood to cache the results appropriately itself.
+get_CCL results a dictionary of results, where results['cosmo'] is the CCL cosmology object.
 
-# Note that this approach preclude sharing results other than the cosmo object itself between different likelihoods.
+Classes that need other CCL-computed results (without additional free parameters), should
+pass them in the requirements list.
 
-# Also note lots of things still cannot be done consistently in CCL, so this is far from general.
+e.g. a Likelihood with get_requirements() returning {'CCL': {'methods:{'name': self.method}}}
+[where self is the Theory instance] will have results['name'] set to the result
+of self.method(cosmo) being called with the CCL cosmo object.
+
+The Likelihood class can therefore handle for itself which results specifically it needs from CCL,
+and just give the method to return them (to be called and cached by Cobaya with the right
+parameters at the appropriate time).
+
+Alternatively the Likelihood can compute what it needs from results['cosmo'], however in this
+case it will be up to the Likelihood to cache the results appropriately itself.
+
+Note that this approach preclude sharing results other than the cosmo object itself between different likelihoods.
+
+Also note lots of things still cannot be done consistently in CCL, so this is far from general.
+"""
 
 # For Cobaya docs see
 # https://cobaya.readthedocs.io/en/devel/theory.html
 # https://cobaya.readthedocs.io/en/devel/theories_and_dependencies.html
 
-
 import numpy as np
+from typing import Sequence, Union
 from cobaya.theory import Theory
 
 
 class CCL(Theory):
-    # Options for Pk
-    Pk = {}
+    # Options for Pk.
+    # Default options can be set globally, and updated from requirements as needed
+    kmax: float = 0  # Maximum k (1/Mpc units) for Pk, or zero if not needed
+    nonlinear: bool = False  # whether to get non-linear Pk from CAMB/Class
+    z: Union[Sequence, np.ndarray] = []  # redshift sampling
+
+    _default_z_sampling = np.linspace(0, 5, 100)
 
     def initialize(self):
-        self._zmax = 0
-        self._kmax = 0
-        self._z_sampling = []
         self._var_pairs = set()
         self._required_results = {}
 
@@ -50,39 +60,34 @@ class CCL(Theory):
         # So a lot of this is fixed
         if 'CCL' not in requirements:
             return {}
-        required_results = requirements.get('CCL')
-        if required_results:
-            self._required_results.update(required_results)
+        options = requirements.get('CCL') or {}
+        if 'methods' in options:
+            self._required_results.update(options['methods'])
 
-        # fix for now
-        self._zmax = max(5, self._zmax)
-        # sampling_step = self._zmax * 0.1
-        # self._z_sampling = np.arange(0, self._zmax, sampling_step)
-        # Fixed at 100 steps to z max for now
-        self._z_sampling = np.linspace(0, self._zmax, 100)
+        self.kmax = max(self.kmax, options.get('kmax', self.kmax))
+        self.z = np.unique(np.concatenate(
+            (np.atleast_1d(options.get("z", self._default_z_sampling)), np.atleast_1d(self.z))))
 
         # Dictionary of the things CCL needs from CAMB/CLASS
         needs = {}
 
-        Pk = self.Pk
-        if Pk:
+        if self.kmax:
+            self.nonlinear = self.nonlinear or options.get('nonlinear', False)
             # CCL currently only supports ('delta_tot', 'delta_tot'), but call allow
             # general as placeholder
-            self._kmax = max(Pk.get('kmax', 10), self._kmax)
             self._var_pairs.update(
                 set((x, y) for x, y in
-                    Pk.get('vars_pairs', [('delta_tot', 'delta_tot')])))
+                    options.get('vars_pairs', [('delta_tot', 'delta_tot')])))
 
-            # for the moment always get Pk_grid, when supported should
             needs['Pk_grid'] = {
                 'vars_pairs': self._var_pairs or [('delta_tot', 'delta_tot')],
-                'nonlinear': (True, False),
-                'z': self._z_sampling,
-                'k_max': self._kmax
+                'nonlinear': (True, False) if self.nonlinear else False,
+                'z': self.z,
+                'k_max': self.kmax
             }
 
-        needs['Hubble'] = {'z': self._z_sampling}
-        needs['comoving_radial_distance'] = {'z': self._z_sampling}
+        needs['Hubble'] = {'z': self.z}
+        needs['comoving_radial_distance'] = {'z': self.z}
 
         assert len(self._var_pairs) < 2, "CCL doesn't support other Pk yet"
         return needs
@@ -96,8 +101,8 @@ class CCL(Theory):
         # what they need (likelihoods should cache results appropriately)
         # get our requirements from self.provider
 
-        distance = self.provider.get_comoving_radial_distance(self._z_sampling)
-        hubble_z = self.provider.get_Hubble(self._z_sampling)
+        distance = self.provider.get_comoving_radial_distance(self.z)
+        hubble_z = self.provider.get_Hubble(self.z)
         H0 = hubble_z[0]
         E_of_z = hubble_z / H0
         # Array z is sorted in ascending order. CCL requires an ascending scale factor
@@ -123,7 +128,7 @@ class CCL(Theory):
                               A_s=self.provider.get_param('As'))
         # Array z is sorted in ascending order. CCL requires an ascending scale
         # factor as input
-        a = 1. / (1 + self._z_sampling[::-1])
+        a = 1. / (1 + self.z[::-1])
         growth = ccl.background.growth_factor(cosmo, a)
         fgrowth = ccl.background.growth_rate(cosmo, a)
         # In order to use CCL with input arrays, the cosmology object needs
@@ -137,19 +142,20 @@ class CCL(Theory):
                                           growth_array=growth,
                                           fgrowth_array=fgrowth)
 
-        if self._kmax:
+        if self.kmax:
             for pair in self._var_pairs:
                 # Get the matter power spectrum:
                 k, z, Pk_lin = self.provider.get_Pk_grid(var_pair=pair, nonlinear=False)
-                k, z, Pk_nonlin = self.provider.get_Pk_grid(var_pair=pair, nonlinear=True)
 
                 # np.flip(arr, axis=0) flips the rows of arr, thus making Pk with z
                 # in descending order.
                 Pk_lin = np.flip(Pk_lin, axis=0)
-                Pk_nonlin = np.flip(Pk_nonlin, axis=0)
-
                 cosmo._set_linear_power_from_arrays(a, k, Pk_lin)
-                cosmo._set_nonlin_power_from_arrays(a, k, Pk_nonlin)
+
+                if self.nonlinear:
+                    k, z, Pk_nonlin = self.provider.get_Pk_grid(var_pair=pair, nonlinear=True)
+                    Pk_nonlin = np.flip(Pk_nonlin, axis=0)
+                    cosmo._set_nonlin_power_from_arrays(a, k, Pk_nonlin)
 
         state['CCL'] = {'cosmo': cosmo}
         for required_result, method in self._required_results.items():

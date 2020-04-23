@@ -9,7 +9,9 @@ class Tester(Likelihood):
     params = {'b_hydro': {"prior": {"min": 0, "max": 1}}}
 
     def get_requirements(self):
-        return {'CCL': {'test_method': self.test_method}}
+        return {'CCL': {"methods": {'test_method': self.test_method},
+                        "kmax": 10,
+                        "nonlinear": True}}
 
     def test_method(self, cosmo):
         z_n = np.linspace(0., 1., 200)
@@ -40,13 +42,14 @@ info = {"params": {"omch2": cosmo_params['Omega_c'] * cosmo_params['h'] ** 2.,
                    "ns": cosmo_params['n_s'],
                    "As": 2.2e-9,
                    "tau": 0},
-        "likelihood": {'Tester': Tester},
+        "likelihood": {"Tester": Tester},
         "theory": {
             "camb": None,
-            "ccl": {"external": CCL, "Pk": {"kmax": 10}}
+            "ccl": {"external": CCL, "nonlinear": False}
         },
         "debug": False, "stop_at_error": True}
 
 model = get_model(info)
 loglikes, derived = model.loglikes({"b_hydro": 0.3})
 assert loglikes[0] == 0.3
+print('OK')
