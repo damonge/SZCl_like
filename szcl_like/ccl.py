@@ -39,6 +39,7 @@ class CCL(Theory):
     kmax: float = 0  # Maximum k (1/Mpc units) for Pk, or zero if not needed
     nonlinear: bool = False  # whether to get non-linear Pk from CAMB/Class
     z: Union[Sequence, np.ndarray] = []  # redshift sampling
+    extra_args: dict = {}  # extra (non-parameter) arguments passed to ccl.Cosmology()
 
     _default_z_sampling = np.linspace(0, 5, 100)
 
@@ -135,7 +136,7 @@ class CCL(Theory):
         # to be reset. This should be improved...
         cosmo = ccl.Cosmology(Omega_c=Omega_c, Omega_b=Omega_b, h=h,
                               n_s=self.provider.get_param('ns'),
-                              A_s=self.provider.get_param('As'))
+                              A_s=self.provider.get_param('As'), **self.extra_args)
         cosmo._set_background_from_arrays(a_array=a,
                                           chi_array=distance,
                                           hoh0_array=E_of_z,
