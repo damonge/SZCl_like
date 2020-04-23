@@ -1,18 +1,32 @@
-# Simple CCL wrapper with function to return CCL cosmo object
-# likelihoods should then calculate what they need themselves from the cosmo object
-# Lots of things still cannot be done consistently in CCL
+# Simple CCL wrapper with function to return CCL cosmo object, and (optional) result of calling various custom methods
+# on the ccl object
+
+# get_CCL results a dictionary of results, where results['cosmo'] is the CCL cosmology object.
+
+# Classes that need other CCL-computed results (without additional free parameters), should
+# pass them in the requirements list.
+# e.g. a Likelihood with get_requirements() returning {'CCL':{'name': self.method}} [where self is the Theory instance]
+# will have results['name'] set to the result of self.method(cosmo) being called with the CCL cosmo object
+# The Likelihood class can therefore handle for itself which results specifically it needs from CCL, and just give the
+# method to return them (to be called and cached by Cobaya with the right parameters at the appropriate time).
+# Alternatively the Likelihood can compute what it needs from results['cosmo'], however in this
+# case it will be up to the Likelihood to cache the results appropriately itself.
+
+# Note that this approach preclude sharing results other than the cosmo object itself between different likelihoods.
+
+# Also note lots of things still cannot be done consistently in CCL, so this is far from general.
 
 # For Cobaya docs see
 # https://cobaya.readthedocs.io/en/devel/theory.html
 # https://cobaya.readthedocs.io/en/devel/theories_and_dependencies.html
+
 
 import numpy as np
 from cobaya.theory import Theory
 
 
 class CCL(Theory):
-
-    #Options for Pk
+    # Options for Pk
     Pk = {}
 
     def initialize(self):
@@ -20,6 +34,7 @@ class CCL(Theory):
         self._kmax = 0
         self._z_sampling = []
         self._var_pairs = set()
+        self._required_results = {}
 
     def get_requirements(self):
         # These are currently required to construct a CCL cosmology object.
@@ -33,6 +48,11 @@ class CCL(Theory):
 
         # CCL currently has no way to infer the required inputs from the required outputs
         # So a lot of this is fixed
+        if 'CCL' not in requirements:
+            return {}
+        required_results = requirements.get('CCL')
+        if required_results:
+            self._required_results.update(required_results)
 
         # fix for now
         self._zmax = max(5, self._zmax)
@@ -132,14 +152,16 @@ class CCL(Theory):
                 cosmo._set_linear_power_from_arrays(a, k, Pk_lin)
                 cosmo._set_nonlin_power_from_arrays(a, k, Pk_nonlin)
 
-        state['cosmology'] = cosmo
-        state['cache'] = {}
+        state['CCL'] = {'cosmo': cosmo}
+        for required_result, method in self._required_results.items():
+            state['CCL'][required_result] = method(cosmo)
 
-    def get_CCL_cosmology(self):
+    def get_CCL(self):
         """
-        Get the CCL Cosmology object for the current state, and an additional dict for cacheing any directly derived
-        results.
+        Get dictionary of CCL computed quantities.
+        results['cosmo'] contains the initialized CCL Cosmology object.
+        Other entries are computed by methods passed in as the requirements
 
-        :return: tuple (CCL Cosmology object. cache dict)
+        :return: dict of results
         """
-        return self._current_state['cosmology'], self._current_state['cache']
+        return self._current_state['CCL']

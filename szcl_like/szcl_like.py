@@ -28,7 +28,7 @@ class SZClLike(Likelihood):
         self.add_2h = False
 
     def get_requirements(self):
-        return {'CCL_cosmology'}
+        return {'CCL': {'cosmo': None, 'sz_model': self._get_sz_model}}
 
     def _read_data(self):
         import sacc
@@ -72,35 +72,33 @@ class SZClLike(Likelihood):
                                                n_sample).astype(int)).astype(float)
         self.l_ls_sample = np.log(self.ls_sample)
 
-    def _get_sz_model(self):
+    def _get_sz_model(self, cosmo):
         model = SZModel()
-        model.hmf = ccl.halos.MassFuncTinker08(self.cosmo,
+        model.hmf = ccl.halos.MassFuncTinker08(cosmo,
                                                mass_def=self.mdef)
-        model.hmb = ccl.halos.HaloBiasTinker10(self.cosmo,
+        model.hmb = ccl.halos.HaloBiasTinker10(cosmo,
                                                mass_def=self.mdef,
                                                mass_def_strict=False)
-        model.hmc = ccl.halos.HMCalculator(self.cosmo,
+        model.hmc = ccl.halos.HMCalculator(cosmo,
                                            model.hmf,
                                            model.hmb,
                                            self.mdef)
-        model.szk = SZTracer(self.cosmo)
+        model.szk = SZTracer(cosmo)
         return model
 
     def _get_theory(self, **pars):
-        self.cosmo, cache = self.provider.get_CCL_cosmology()
-        sz_model = cache.get('sz_model')
-        if sz_model is None:
-            sz_model = self._get_sz_model()
-            cache['sz_model'] = sz_model
+        results = self.provider.get_CCL()
+        cosmo = results['cosmo']
+        sz_model = results['sz_model']
 
         self.prof._update_bhydro(pars['b_hydro'])
-        pk2d = ccl.halos.halomod_Pk2D(self.cosmo,
+        pk2d = ccl.halos.halomod_Pk2D(cosmo,
                                       sz_model.hmc,
                                       self.prof,
                                       lk_arr=self.lks,
                                       a_arr=self.a_s,
                                       get_2h=self.add_2h)
-        cls = ccl.angular_cl(self.cosmo, sz_model.szk, sz_model.szk,
+        cls = ccl.angular_cl(cosmo, sz_model.szk, sz_model.szk,
                              self.ls_sample,
                              p_of_k_a=pk2d)
         clf = interp1d(self.l_ls_sample, np.log(cls),
