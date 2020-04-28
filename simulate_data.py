@@ -75,7 +75,7 @@ cov = np.diag((bpws+bpws_n)**2 / ((leff + 0.5) * fsky * d_ell))
 
 s = sacc.Sacc()
 s.add_tracer('Map', 'SO_y', quantity='cmb_tSZ',
-             spin=0, ell=l_all, beam_ell=beam)
+             spin=0, ell=l_all, beam=beam)
 s.add_ell_cl('cl_00', 'SO_y', 'SO_y',
              leff, bpws, window=win,
              window_id=range(len(leff)))

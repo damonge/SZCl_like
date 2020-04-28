@@ -59,7 +59,7 @@ class SZClLike(Likelihood):
 
         # Read beam and resample
         t = s.get_tracer(self.map_name)
-        beam_f = interp1d(t.ell, t.beam_ell,
+        beam_f = interp1d(t.ell, t.beam,
                           bounds_error=False,
                           fill_value=0)
         self.beam2 = beam_f(self.ls_all) ** 2
