@@ -1,7 +1,7 @@
 import pyccl as ccl
 import numpy as np
 import matplotlib.pyplot as plt
-from szcl_like import HaloProfileArnaud, SZTracer
+from szcl_like.theory import HaloProfileArnaud, SZTracer
 from scipy.interpolate import interp1d
 import sacc
 
